@@ -1,0 +1,197 @@
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Road Safety System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 75vh;
+            margin: 52px;
+            text-align: center;
+            flex-direction: column;
+        }
+
+        .container {
+            background: #ffe4e1;
+            padding: 20px;
+            border-radius: 7px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        input {
+            display: block;
+            width: 100%;
+            padding:10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 1px;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        p a {
+            color: #3498db;
+            cursor: pointer;
+        }
+
+        video, canvas {
+            width: 100%;
+            max-width: 200px;
+            height: 200px;
+            border: 4px solid black;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="container">
+        <h2>Login</h2>
+        <input type="text" id="loginUsername" placeholder="Username" required>
+        <input type="password" id="loginPassword" placeholder="Password" required>
+        <button onclick="validateLogin()">Login</button>
+        <p id="loginErrorMessage"></p>
+        <p>Don't have an account? <a href="#" onclick="showSignUp()">Sign Up</a></p>
+    </div>
+
+    <!-- Sign-Up Page -->
+    <div id="signUpPage" class="container" style="display: none;">
+        <h2>Sign Up</h2>
+        <input type="text" id="signUpUsername" placeholder="Enter Username" required>
+        <input type="password" id="signUpPassword" placeholder="Enter Password" required>
+        <button onclick="registerUser()">Sign Up</button>
+        <p id="signUpMessage"></p>
+        <p>Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
+    </div>
+
+    <!-- Detection Page -->
+    <div id="detectionPage" class="container" style="display: none;">
+        <h1>AI-Powered Animal Detection</h1>
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <audio id="alertSound" src="siren-alert-96052 (1).mp3"></audio>
+        <p id="status">Status: Searching for animals...</p>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <!-- TensorFlow.js and COCO-SSD Model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script>
+        let users = JSON.parse(localStorage.getItem("users")) || [];
+
+        function showLogin() {
+            document.getElementById("loginPage").style.display = "block";
+            document.getElementById("signUpPage").style.display = "none";
+        }
+
+        function showSignUp() {
+            document.getElementById("loginPage").style.display = "none";
+            document.getElementById("signUpPage").style.display = "block";
+        }
+
+        function registerUser() {
+            let username = document.getElementById("signUpUsername").value;
+            let password = document.getElementById("signUpPassword").value;
+
+            if (username && password) {
+                users.push({ username, password });
+                localStorage.setItem("users", JSON.stringify(users));
+                document.getElementById("signUpMessage").innerText = "Sign up successful! You can now login.";
+            } else {
+                document.getElementById("signUpMessage").innerText = "Please enter valid details.";
+            }
+        }
+
+        function validateLogin() {
+            let username = document.getElementById("loginUsername").value;
+            let password = document.getElementById("loginPassword").value;
+
+            let user = users.find(user => user.username === username && user.password === password);
+
+            if (user) {
+                document.getElementById("loginPage").style.display = "none";
+                document.getElementById("detectionPage").style.display = "block";
+                startDetection();
+            } else {
+                document.getElementById("loginErrorMessage").innerText = "Invalid username or password!";
+            }
+        }
+
+        function logout() {
+            document.getElementById("loginPage").style.display = "block";
+            document.getElementById("detectionPage").style.display = "none";
+        }
+
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const statusText = document.getElementById("status");
+        const alertSound = document.getElementById("alertSound");
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise(resolve => {
+                video.onloadedmetadata = () => {
+                    resolve(video);
+                };
+            });
+        }
+
+        async function detectObjects(model) {
+            const predictions = await model.detect(video);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            let animalDetected = false;
+            predictions.forEach(prediction => {
+                if (["dog", "cat", "cow", "horse"].includes(prediction.class)) {
+                    ctx.beginPath();
+                    ctx.rect(...prediction.bbox);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "red";
+                    ctx.fillStyle = "red";
+                    ctx.stroke();
+                    ctx.fillText(prediction.class, prediction.bbox[0], prediction.bbox[1] - 10);
+
+                    statusText.innerText = "⚠️ Warning: Animal Detected!";
+                    animalDetected = true;
+                }
+            });
+
+            if (animalDetected) {
+                alertSound.play();
+            } else {
+                statusText.innerText = "✅ Status: No animals detected.";
+            }
+
+            requestAnimationFrame(() => detectObjects(model));
+        }
+
+        async function startDetection() {
+            await setupCamera();
+            const model = await cocoSsd.load();
+            detectObjects(model);
+        }
+    </script>
+
+</body>
+</html>
